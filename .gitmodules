@@ -1,0 +1,6 @@
+[submodule "third_party/nessDB"]
+	path = third_party/nessDB
+	url = git://github.com/shuttler/nessDB.git
+[submodule "third_party/leveldb"]
+	path = third_party/leveldb
+	url = https://code.google.com/p/leveldb/
