@@ -40,12 +40,11 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include "config.h"
+
 typedef	unsigned int	u_int;
 typedef	unsigned long	u_long;
-#include <db4.8/db.h>
-
-#include "config.h"
-#include "db.h"
+#include <db.h>
 
 struct nb_db_berkeleydb {
 	DB_ENV *env;

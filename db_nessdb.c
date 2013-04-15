@@ -27,6 +27,8 @@
  * SUCH DAMAGE.
  */
 
+#include "db_nessdb.h"
+
 #include <stdlib.h>
 #include <stdint.h>
 #include <limits.h>
@@ -35,11 +37,9 @@
 #include <pthread.h>
 #include <assert.h>
 
-#include <engine/db.h>
-
 #include "config.h"
-#include "db.h"
-#include "db_nessdb.h"
+
+#include <engine/db.h>
 
 #if !defined(HAVE_NESSDB_V1) && !defined(HAVE_NESSDB_V2)
 #error Unsupported NESSDB version

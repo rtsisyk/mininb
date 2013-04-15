@@ -1,0 +1,11 @@
+NessDB Installation
+===================
+
+Bundled package
+---------------
+
+```
+cd third_party/nessDB
+git checkout remotes/origin/v1.8.2
+make
+```

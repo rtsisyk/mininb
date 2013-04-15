@@ -3,7 +3,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <inttypes.h>
-#include "db.h"
+#include "dbif.h"
 #include "options.h"
 #include "random.h"
 #include "time.h"

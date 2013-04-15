@@ -27,6 +27,8 @@
  * SUCH DAMAGE.
  */
 
+#include "db_kyotocabinet.h"
+
 #include <stdlib.h>
 #include <stdint.h>
 #include <limits.h>
@@ -37,10 +39,9 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#include <kcpolydb.h>
-
 #include "config.h"
-#include "db_kyotocabinet.h"
+
+#include <kcpolydb.h>
 
 struct nb_db_kyotocabinet {
 	kyotocabinet::TreeDB instance;

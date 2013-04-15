@@ -7,15 +7,15 @@
 #
 
 find_library(BERKELEYDB_LIBRARIES
-	NAMES db-48 db-4.8
+	NAMES db-48 db-4.8 db-51 db-5.1
 	PATHS "${CMAKE_SOURCE_DIR}/third_party"
-	PATH_SUFFIXES db db-48 db-4.8
+	PATH_SUFFIXES db db-48 db-4.8 db-51 db-5.1
 )
 
 find_path(BERKELEYDB_INCLUDE_DIRS
 	NAMES db.h
 	PATHS "${CMAKE_SOURCE_DIR}/third_party"
-	PATH_SUFFIXES db db-48 db-4.8
+	PATH_SUFFIXES db db-48 db-4.8 db-51 db-5.1
 )
 
 include(FindPackageHandleStandardArgs)

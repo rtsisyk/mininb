@@ -1,0 +1,43 @@
+LevelDB Installation
+====================
+
+Bundled package
+---------------
+
+```
+cd third_party/leveldb
+vi Makefile
+make
+```
+
+To enable better optimization please change the following line in Makefile:
+
+```
+OPT ?= -O2 -DNDEBUG       # (A) Production use (optimized mode)
+```
+
+to
+
+```
+OPT ?= -O3 -march=native -DNDEBUG  # (A) Production use (optimized mode)
+```
+
+Debian
+------
+
+Install development package using `apt`:
+
+```
+apt-get install libleveldb-dev
+```
+
+Version 1.9.0-1 was tested.
+
+Gentoo
+------
+
+```
+emerge dev-libs/leveldb
+```
+
+Version 1.9.0-r5 was tested.

@@ -13,7 +13,7 @@ find_library(CASCADEDB_LIBRARIES
 )
 
 find_path(CASCADEDB_INCLUDE_DIRS
-	NAMES api.h
+	NAMES cascadedb/api.h
 	PATHS "${CMAKE_SOURCE_DIR}/third_party"
 	PATH_SUFFIXES cascadedb
 )

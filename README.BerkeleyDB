@@ -1,0 +1,24 @@
+BerkeleyDB Installation
+=======================
+
+Debian
+------
+
+Install development package using `apt`:
+
+```
+apt-get install libdb-dev
+```
+
+Version 5.1 was tested.
+
+Gentoo
+------
+
+`sys-libs/db` is a part of system profile, so it should already be installed.
+
+```
+emerge sys-libs/db
+```
+
+Version 4.8 was tested.

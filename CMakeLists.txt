@@ -16,7 +16,7 @@ endif()
 
 set(SRC_LIST
 	mininb.c
-	db.c
+	dbif.c
 	options.c
 	random.c
 	time.c

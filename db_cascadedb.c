@@ -27,6 +27,8 @@
  * SUCH DAMAGE.
  */
 
+#include "db_cascadedb.h"
+
 #include <stdlib.h>
 #include <stdint.h>
 #include <limits.h>
@@ -35,11 +37,9 @@
 #include <pthread.h>
 #include <assert.h>
 
-#include "api.h"
-
 #include "config.h"
-#include "db.h"
-#include "db_cascadedb.h"
+
+#include <cascadedb/api.h>
 
 struct nb_db_cascadedb {
 	struct db *instance;

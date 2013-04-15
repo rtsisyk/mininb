@@ -32,7 +32,7 @@
 #include <string.h>
 
 #include "config.h"
-#include "db.h"
+#include "dbif.h"
 #if defined(HAVE_LEVELDB)
 #include "db_leveldb.h"
 #endif

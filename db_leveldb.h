@@ -30,7 +30,7 @@
  * SUCH DAMAGE.
  */
 
-#include "db.h"
+#include "dbif.h"
 
 extern struct nb_db_if nb_db_leveldb;
 

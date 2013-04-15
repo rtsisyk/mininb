@@ -28,6 +28,8 @@
  * SUCH DAMAGE.
  */
 
+#include "db_leveldb.h"
+
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -35,9 +37,6 @@
 #include "config.h"
 
 #include <leveldb/c.h>
-
-#include "db.h"
-#include "db_leveldb.h"
 
 struct nb_db_leveldb {
 	leveldb_t *instance;

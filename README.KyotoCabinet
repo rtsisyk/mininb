@@ -1,0 +1,22 @@
+KyotoCabinet Installation
+=========================
+
+Debian
+------
+
+Install development package using `apt`:
+
+```
+apt-get install libkyotocabinet-dev
+```
+
+Version 1.2.76-4 was tested.
+
+Gentoo
+------
+
+```
+emerge dev-db/kyotocabinet
+```
+
+Version 1.2.76 was tested.
