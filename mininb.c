@@ -72,7 +72,7 @@ bench(struct nb_opts *opts)
 	struct nb_random random;
 	if (nb_random_create(&random, opts->keys_filename) != 0) {
 		fprintf(stderr, "random_create failed\n");
-		fprintf(stderr, "Please generate random file using dd"
+		fprintf(stderr, "Please generate random file using dd:\n"
 			"dd if=/dev/urandom of=keys.bin bs=1M count=100\n");
 		goto error_5;
 	}
