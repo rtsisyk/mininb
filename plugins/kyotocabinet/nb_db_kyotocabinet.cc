@@ -134,6 +134,9 @@ nb_db_kyotocabinet_select(struct nb_db *db, const void *key, size_t key_len,
 
 	assert (pval == NULL);
 
+	(void) pval;
+	(void) pval_len;
+
 	if (!kc->instance.get((const char *) key, key_len,
 			      NULL, 0)) {
 		fprintf(stderr, "db->select() failed\n");
