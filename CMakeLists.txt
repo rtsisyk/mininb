@@ -89,6 +89,22 @@ configure_file(
 	"config.h"
 )
 
+find_package (TokuKV QUIET)
+if (TOKUKV_FOUND)
+	set(SRC_LIST ${SRC_LIST}
+		db_tokukv.c
+		db_tokukv.h
+	)
+
+	include_directories(${TOKUKV_INCLUDE_DIRS})
+	set(HAVE_TOKUKV 1)
+endif (TOKUKV_FOUND)
+
+configure_file(
+	"config.h.cmake"
+	"config.h"
+)
+
 add_executable(${PROJECT_NAME} ${SRC_LIST})
 target_link_libraries(${PROJECT_NAME} rt)
 
@@ -111,3 +127,7 @@ endif (BERKELEYDB_FOUND)
 if (KYOTOCABINET_FOUND)
 	target_link_libraries (${PROJECT_NAME} ${KYOTOCABINET_LIBRARIES})
 endif (KYOTOCABINET_FOUND)
+
+if (TOKUKV_FOUND)
+	target_link_libraries (${PROJECT_NAME} ${TOKUKV_LIBRARIES})
+endif (TOKUKV_FOUND)

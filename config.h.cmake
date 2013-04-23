@@ -12,5 +12,6 @@
 #cmakedefine HAVE_CASCADEDB 1
 #cmakedefine HAVE_BERKELEYDB 1
 #cmakedefine HAVE_KYOTOCABINET 1
+#cmakedefine HAVE_TOKUKV 1
 
 #endif /* MININB_CONFIG_H_INCLUDED */
