@@ -27,20 +27,18 @@
  * SUCH DAMAGE.
  */
 
-#include "db_berkeleydb.h"
+#include "../../nb_plugin_api.h"
 
 #include <stdlib.h>
 #include <stdint.h>
-#include <limits.h>
 #include <string.h>
 #include <stdio.h>
-#include <pthread.h>
+#include <time.h>
 #include <assert.h>
 #include <errno.h>
+
 #include <sys/stat.h>
 #include <sys/types.h>
-
-#include "config.h"
 
 typedef	unsigned int	u_int;
 typedef	unsigned long	u_long;
@@ -52,7 +50,7 @@ struct nb_db_berkeleydb {
 };
 
 static struct nb_db *
-db_berkeleydb_ctor(const struct nb_options *opts)
+nb_db_berkeleydb_open(const struct nb_db_opts *opts)
 {
 	struct nb_db_berkeleydb *berkeleydb = malloc(sizeof(*berkeleydb));
 	if (berkeleydb == NULL) {
@@ -60,14 +58,8 @@ db_berkeleydb_ctor(const struct nb_options *opts)
 		goto error_1;
 	}
 
-	char path[FILENAME_MAX];
-	snprintf(path, FILENAME_MAX - 1, "%s/%s", opts->root, "berkeleydb");
-	path[FILENAME_MAX - 1] = 0;
-
-	fprintf(stderr, "BerkeleyDB new: path=%s\n", path);
-
 	int r;
-	r = mkdir(path, 0777);
+	r = mkdir(opts->path, 0777);
 	if (r != 0 && errno != EEXIST) {
 		fprintf(stderr, "mkdir: %d\n", r);
 		goto error_1;
@@ -79,38 +71,44 @@ db_berkeleydb_ctor(const struct nb_options *opts)
 	int env_flags = DB_REGION_INIT;
 	r = db_env_create(&env, 0);
 	if (r != 0) {
-		fprintf(stderr, "db_env_create: %d\n", r);
+		fprintf(stderr, "db_env_create: %s\n",
+			db_strerror(r));
 		goto error_1;
 	}
 	r = env->set_cachesize(env, 0, 0, 1);
 	if (r != 0) {
-		fprintf(stderr, "set_cachesize: %d\n", r);
+		fprintf(stderr, "set_cachesize: %s\n",
+			db_strerror(r));
 		goto error_2;
 	}
 	env_flags |= DB_TXN_WRITE_NOSYNC;
 	r = env->set_flags(env, env_flags, 1);
 	if (r != 0) {
-		fprintf(stderr, "set_flags: %d\n", r);
+		fprintf(stderr, "set_flags: %s\n",
+			db_strerror(r));
 		goto error_2;
 	}
 	int log_flags = DB_LOG_AUTO_REMOVE;
 	r = env->log_set_config(env, log_flags, 1);
 
 	int env_open_flags = DB_CREATE|DB_INIT_MPOOL;
-	r = env->open(env, path, env_open_flags, 0666);
+	r = env->open(env, opts->path, env_open_flags, 0666);
 	if (r != 0) {
-		fprintf(stderr, "env->open: %d\n", r);
+		fprintf(stderr, "env->open: %s\n",
+			db_strerror(r));
 		goto error_2;
 	}
 	r = db_create(&db, env, 0);
 	if (r != 0) {
-		fprintf(stderr, "db_create: %d\n", r);
+		fprintf(stderr, "db_create: %s\n",
+			db_strerror(r));
 		goto error_2;
 	}
 	int open_flags = DB_CREATE;
 	r = db->open(db, NULL, "data.bdb", NULL, DB_BTREE, open_flags, 0664);
 	if (r != 0) {
-		fprintf(stderr, "db->open: %d\n", r);
+		fprintf(stderr, "db->open: %s\n",
+			db_strerror(r));
 		goto error_3;
 	}
 
@@ -127,7 +125,7 @@ error_1:
 }
 
 static void
-db_berkeleydb_dtor(struct nb_db *db)
+nb_db_berkeleydb_close(struct nb_db *db)
 {
 	struct nb_db_berkeleydb *berkeleydb = (struct nb_db_berkeleydb *) db;
 
@@ -139,8 +137,8 @@ db_berkeleydb_dtor(struct nb_db *db)
 }
 
 static int
-db_berkeleydb_replace(struct nb_db *db, const struct nb_slice *key,
-		     const struct nb_slice *val)
+nb_db_berkeleydb_replace(struct nb_db *db, const void *key, size_t key_len,
+			 const void *val, size_t val_len)
 {
 	struct nb_db_berkeleydb *berkeleydb = (struct nb_db_berkeleydb *) db;
 
@@ -148,16 +146,17 @@ db_berkeleydb_replace(struct nb_db *db, const struct nb_slice *key,
 	memset(&dbkey, 0, sizeof(dbkey));
 	memset(&dbval, 0, sizeof(dbval));
 
-	dbkey.data = (void *) key->data;
-	dbkey.size = key->size;
-	dbval.data = (void *) val->data;
-	dbval.size = val->size;
+	dbkey.data = (void *) key;
+	dbkey.size = key_len;
+	dbval.data = (void *) val;
+	dbval.size = val_len;
 
 	int put_flags = DB_OVERWRITE_DUP;
 	int r = berkeleydb->db->put(berkeleydb->db, NULL, &dbkey, &dbval,
 				    put_flags);
 	if (r == DB_NOTFOUND) {
-		fprintf(stderr, "db->get() failed: %d\n", r);
+		fprintf(stderr, "db->get() failed: %s\n",
+			db_strerror(r));
 		return -1;
 	}
 
@@ -165,19 +164,20 @@ db_berkeleydb_replace(struct nb_db *db, const struct nb_slice *key,
 }
 
 static int
-db_berkeleydb_delete(struct nb_db *db, const struct nb_slice *key)
+nb_db_berkeleydb_remove(struct nb_db *db, const void *key, size_t key_len)
 {
 	struct nb_db_berkeleydb *berkeleydb = (struct nb_db_berkeleydb *) db;
 
 	DBT dbkey;
 	memset(&dbkey, 0, sizeof(dbkey));
 
-	dbkey.data = (void *) key->data;
-	dbkey.size = key->size;
+	dbkey.data = (void *) key;
+	dbkey.size = key_len;
 
 	int r = berkeleydb->db->del(berkeleydb->db, NULL, &dbkey, 0);
 	if (r == DB_NOTFOUND) {
-		fprintf(stderr, "db->del() failed: %d\n", r);
+		fprintf(stderr, "db->del() failed: %s\n",
+			db_strerror(r));
 		return -1;
 	}
 
@@ -185,7 +185,8 @@ db_berkeleydb_delete(struct nb_db *db, const struct nb_slice *key)
 }
 
 static int
-db_berkeleydb_select(struct nb_db *db, const struct nb_slice *key)
+nb_db_berkeleydb_select(struct nb_db *db, const void *key, size_t key_len,
+			void **pval, size_t *pval_len)
 {
 	struct nb_db_berkeleydb *berkeleydb = (struct nb_db_berkeleydb *) db;
 
@@ -193,24 +194,47 @@ db_berkeleydb_select(struct nb_db *db, const struct nb_slice *key)
 	memset(&dbkey, 0, sizeof(dbkey));
 	memset(&dbval, 0, sizeof(dbval));
 
-	dbkey.data = (void *) key->data;
-	dbkey.size = key->size;
+	dbkey.data = (void *) key;
+	dbkey.size = key_len;
+
+	if (pval != NULL) {
+		dbval.flags = DB_DBT_MALLOC;
+	}
 
 	int r = berkeleydb->db->get(berkeleydb->db, NULL, &dbkey, &dbval, 0);
 	if (r == DB_NOTFOUND) {
-		fprintf(stderr, "db->get() failed: %d\n", r);
+		fprintf(stderr, "db->get() failed: %s\n",
+			db_strerror(r));
 		return -1;
+	}
+
+	if (pval) {
+		*pval = dbval.data;
+		*pval_len = dbval.size;
 	}
 
 	return 0;
 }
 
-struct nb_db_if nb_db_berkeleydb =
+static void
+nb_db_berkeleydb_valfree(struct nb_db *db, void *val)
 {
+	(void) db;
+	free(val);
+}
+
+static struct nb_db_if plugin = {
 	.name       = "berkeleydb",
-	.ctor       = db_berkeleydb_ctor,
-	.dtor       = db_berkeleydb_dtor,
-	.replace_cb = db_berkeleydb_replace,
-	.delete_cb  = db_berkeleydb_delete,
-	.select_cb  = db_berkeleydb_select,
+	.open       = nb_db_berkeleydb_open,
+	.close      = nb_db_berkeleydb_close,
+	.replace    = nb_db_berkeleydb_replace,
+	.remove     = nb_db_berkeleydb_remove,
+	.select     = nb_db_berkeleydb_select,
+	.valfree    = nb_db_berkeleydb_valfree,
 };
+
+NB_DB_PLUGIN const struct nb_db_if *
+nb_db_berkeleydb_plugin(void)
+{
+	return &plugin;
+}

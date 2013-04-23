@@ -1,0 +1,7 @@
+#ifndef NB_DB_NESSDB_CONFIG_H_INCLUDED
+#define NB_DB_NESSDB__H_INCLUDED
+
+#cmakedefine HAVE_NESSDB_V1 1
+#cmakedefine HAVE_NESSDB_V2 1
+
+#endif /* NB_DB_NESSDB_CONFIG_H_INCLUDED */

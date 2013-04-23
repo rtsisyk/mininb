@@ -5,7 +5,7 @@ Bundled package
 ---------------
 
 ```
-cd third-party/ft-index
+cd third_party/ft-index
 git clone git://github.com/Tokutek/jemalloc.git third_party/jemalloc
 mkdir build
 cd build

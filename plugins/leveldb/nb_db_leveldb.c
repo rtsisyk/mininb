@@ -1,4 +1,3 @@
-
 /*
  * Redistribution and use in source and binary forms, with or
  * without modification, are permitted provided that the following
@@ -28,13 +27,12 @@
  * SUCH DAMAGE.
  */
 
-#include "db_leveldb.h"
+#include "../../nb_plugin_api.h"
 
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-
-#include "config.h"
+#include <assert.h>
 
 #include <leveldb/c.h>
 
@@ -46,7 +44,7 @@ struct nb_db_leveldb {
 };
 
 static struct nb_db *
-db_leveldb_ctor(const struct nb_options *opts)
+nb_db_leveldb_open(const struct nb_db_opts *opts)
 {
 	struct nb_db_leveldb *leveldb = calloc(1, sizeof(*leveldb));
 	if (leveldb == NULL) {
@@ -75,14 +73,8 @@ db_leveldb_ctor(const struct nb_options *opts)
 	leveldb_options_set_paranoid_checks(leveldb->options, 0);
 	leveldb_options_set_create_if_missing(leveldb->options, 1);
 
-	char path[FILENAME_MAX];
-	snprintf(path, FILENAME_MAX - 1, "%s/%s", opts->root, "leveldb");
-	path[FILENAME_MAX - 1] = 0;
-
-	fprintf(stderr, "LevelDB new: path=%s\n", path);
-
 	char* err = NULL;
-	leveldb->instance = leveldb_open(leveldb->options, path, &err);
+	leveldb->instance = leveldb_open(leveldb->options, opts->path, &err);
 	if (err != NULL) {
 		fprintf(stderr, "leveldb_open() failed: %s\n", err);
 		leveldb->instance = NULL;
@@ -98,7 +90,7 @@ error_1:
 }
 
 static void
-db_leveldb_dtor(struct nb_db *db)
+nb_db_leveldb_close(struct nb_db *db)
 {
 	struct nb_db_leveldb *leveldb = (struct nb_db_leveldb *) db;
 
@@ -109,19 +101,19 @@ db_leveldb_dtor(struct nb_db *db)
 
 	leveldb->instance = NULL;
 
-	printf("LevelDB delete\n");
+	free(leveldb);
 }
 
 static int
-db_leveldb_replace(struct nb_db *db, const struct nb_slice *key,
-		   const struct nb_slice *val)
+nb_db_leveldb_replace(struct nb_db *db, const void *key, size_t key_len,
+		      const void *val, size_t val_len)
 {
 	struct nb_db_leveldb *leveldb = (struct nb_db_leveldb *) db;
 
 	char *err = NULL;
 
-	leveldb_put(leveldb->instance, leveldb->woptions, key->data, key->size,
-		    val->data, val->size, &err);
+	leveldb_put(leveldb->instance, leveldb->woptions, key, key_len,
+		    val, val_len, &err);
 	if (err != NULL) {
 		printf("leveldb_put() failed: %s\n", err);
 		return -1;
@@ -130,16 +122,15 @@ db_leveldb_replace(struct nb_db *db, const struct nb_slice *key,
 	return 0;
 }
 
-
 static int
-db_leveldb_delete(struct nb_db *db, const struct nb_slice *key)
+nb_db_leveldb_remove(struct nb_db *db, const void *key, size_t key_len)
 {
 	struct nb_db_leveldb *leveldb = (struct nb_db_leveldb *) db;
 
 	char *err = NULL;
 
 	leveldb_delete(leveldb->instance, leveldb->woptions,
-		       key->data, key->size, &err);
+		       key, key_len, &err);
 	if (err != NULL) {
 		printf("leveldb_delete() failed: %s\n", err);
 		return -1;
@@ -148,37 +139,54 @@ db_leveldb_delete(struct nb_db *db, const struct nb_slice *key)
 	return 0;
 }
 
-
 static int
-db_leveldb_select(struct nb_db *db, const struct nb_slice *key)
+nb_db_leveldb_select(struct nb_db *db, const void *key, size_t key_len,
+		     void **pval, size_t *pval_len)
 {
 	struct nb_db_leveldb *leveldb = (struct nb_db_leveldb *) db;
 
 	char *err = NULL;
 
-	size_t value_size;
-	char* value;
-	value = leveldb_get(leveldb->instance, leveldb->roptions,
-			    key->data, key->size,
-			    &value_size, &err);
-	if (value) {
-		free(value);
-	}
+	void *val;
+	size_t val_len;
+	val = leveldb_get(leveldb->instance, leveldb->roptions,
+			  key, key_len,
+			  &val_len, &err);
 
 	if (err != NULL) {
 		printf("leveldb_get() failed: %s\n", err);
 		return -1;
 	}
 
+	assert (val != NULL);
+
+	if (pval) {
+		*pval = val;
+		*pval_len = val_len;
+	}
+
 	return 0;
 }
 
-struct nb_db_if nb_db_leveldb =
+static void
+nb_db_leveldb_valfree(struct nb_db *db, void *val)
 {
+	(void) db;
+	leveldb_free(val);
+}
+
+static struct nb_db_if plugin = {
 	.name       = "leveldb",
-	.ctor       = db_leveldb_ctor,
-	.dtor       = db_leveldb_dtor,
-	.replace_cb = db_leveldb_replace,
-	.delete_cb  = db_leveldb_delete,
-	.select_cb  = db_leveldb_select,
+	.open       = nb_db_leveldb_open,
+	.close      = nb_db_leveldb_close,
+	.replace    = nb_db_leveldb_replace,
+	.remove     = nb_db_leveldb_remove,
+	.select     = nb_db_leveldb_select,
+	.valfree    = nb_db_leveldb_valfree,
 };
+
+NB_DB_PLUGIN const struct nb_db_if *
+nb_db_leveldb_plugin(void)
+{
+	return &plugin;
+}

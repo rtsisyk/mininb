@@ -1,5 +1,5 @@
-#ifndef NB_DB_LEVELDB_H_INCLUDED
-#define NB_DB_LEVELDB_H_INCLUDED
+#ifndef NB_DB_PLUGIN_API_H_INCLUDED
+#define NB_DB_PLUGIN_API_H_INCLUDED
 
 /*
  * Redistribution and use in source and binary forms, with or
@@ -30,8 +30,54 @@
  * SUCH DAMAGE.
  */
 
-#include "dbif.h"
+#include <stddef.h>
 
-extern struct nb_db_if nb_db_leveldb;
+#if defined(__cplusplus)
+extern "C" {
+#endif /* defined(__cplusplus) */
 
-#endif /* NB_DB_LEVELDB_H_INCLUDED */
+#define NB_DB_PLUGIN __attribute__((__visibility__("default")))
+
+struct nb_db {
+	const struct nb_db_opts *opts;
+};
+
+struct nb_db_opts {
+	const char *path;
+};
+
+typedef struct nb_db *
+(*nb_db_open_t)(const struct nb_db_opts *opts);
+
+typedef void
+(*nb_db_close_t)(struct nb_db *db);
+
+typedef int
+(*nb_db_replace_t)(struct nb_db *db, const void *key, size_t key_len,
+		   const void *val, size_t val_len);
+
+typedef int
+(*nb_db_remove_t)(struct nb_db *db, const void *key, size_t key_len);
+
+typedef int
+(*nb_db_select_t)(struct nb_db *db, const void *key, size_t key_len,
+		  void **pval, size_t *pval_len);
+
+typedef void
+(*nb_db_valfree_t)(struct nb_db *db, void *val);
+
+struct nb_db_if {
+	const char *name;
+	nb_db_open_t open;
+	nb_db_close_t close;
+	nb_db_replace_t replace;
+	nb_db_remove_t remove;
+	nb_db_select_t select;
+	nb_db_valfree_t valfree;
+};
+
+#if defined(__cplusplus)
+} /* extern "C" */
+#endif /* defined(__cplusplus) */
+
+#endif /* NB_DB_PLUGIN_API_H_INCLUDED */

@@ -27,14 +27,13 @@
  * SUCH DAMAGE.
  */
 
-#include "db_nessdb.h"
+#include "../../nb_plugin_api.h"
 
 #include <stdlib.h>
 #include <stdint.h>
 #include <limits.h>
 #include <string.h>
 #include <stdio.h>
-#include <pthread.h>
 #include <assert.h>
 
 #include "config.h"
@@ -50,7 +49,7 @@ struct nb_db_nessdb {
 };
 
 static struct nb_db *
-db_nessdb_ctor(const struct nb_options *opts)
+nb_db_nessdb_open(const struct nb_db_opts *opts)
 {
 	struct nb_db_nessdb *nessdb = malloc(sizeof(*nessdb));
 	if (nessdb == NULL) {
@@ -58,16 +57,10 @@ db_nessdb_ctor(const struct nb_options *opts)
 		goto error_1;
 	}
 
-	char path[FILENAME_MAX];
-	snprintf(path, FILENAME_MAX - 1, "%s/%s", opts->root, "nessdb");
-	path[FILENAME_MAX - 1] = 0;
-
-	fprintf(stderr, "nessDB new: path=%s\n", path);
-
 #if defined(HAVE_NESSDB_V2)
-	nessdb->instance = db_open(path);
+	nessdb->instance = db_open(opts->path);
 #elif defined(HAVE_NESSDB_V1)
-	nessdb->instance = db_open(path, 0UL, 0);
+	nessdb->instance = db_open(opts->path, 0UL, 0);
 #endif
 	if (nessdb->instance == NULL) {
 		fprintf(stderr, "db_open() failed\n");
@@ -83,7 +76,7 @@ error_1:
 }
 
 static void
-db_nessdb_dtor(struct nb_db *db)
+nb_db_nessdb_close(struct nb_db *db)
 {
 	struct nb_db_nessdb *nessdb = (struct nb_db_nessdb *) db;
 	db_close(nessdb->instance);
@@ -92,21 +85,20 @@ db_nessdb_dtor(struct nb_db *db)
 }
 
 static int
-db_nessdb_replace(struct nb_db *db, const struct nb_slice *key,
-			    const struct nb_slice *val)
+nb_db_nessdb_replace(struct nb_db *db, const void *key, size_t key_len,
+		     const void *val, size_t val_len)
 {
 	struct nb_db_nessdb *nessdb = (struct nb_db_nessdb *) db;
 
-	assert (key->size < UINT_MAX);
-	assert (val->size < UINT_MAX);
+	assert (key_len < UINT_MAX);
+	assert (val_len < UINT_MAX);
 
 	struct slice nkey, nval;
-	nkey.len = key->size;
-	nkey.data = (char *) key->data;
-	nval.len = val->size;
-	nval.data = (char *) val->data;
+	nkey.len = key_len;
+	nkey.data = (char *) key;
+	nval.len = val_len;
+	nval.data = (char *) val;
 
-	/* db_remove(t->instance->db, &nkey); */
 	int count = db_add(nessdb->instance, &nkey, &nval);
 	if (count != 1) {
 		printf("db_add() failed: %d\n", count);
@@ -117,15 +109,15 @@ db_nessdb_replace(struct nb_db *db, const struct nb_slice *key,
 }
 
 static int
-db_nessdb_delete(struct nb_db *db, const struct nb_slice *key)
+nb_db_nessdb_remove(struct nb_db *db, const void *key, size_t key_len)
 {
 	struct nb_db_nessdb *nessdb = (struct nb_db_nessdb *) db;
 
-	assert (key->size < UINT_MAX);
+	assert (key_len < UINT_MAX);
 
 	struct slice nkey;
-	nkey.len = key->size;
-	nkey.data = (char *) key->data;
+	nkey.len = key_len;
+	nkey.data = (char *) key;
 
 	db_remove(nessdb->instance, &nkey);
 
@@ -133,15 +125,16 @@ db_nessdb_delete(struct nb_db *db, const struct nb_slice *key)
 }
 
 static int
-db_nessdb_select(struct nb_db *db, const struct nb_slice *key)
+nb_db_nessdb_select(struct nb_db *db, const void *key, size_t key_len,
+		     void **pval, size_t *pval_len)
 {
 	struct nb_db_nessdb *nessdb = (struct nb_db_nessdb *) db;
 
-	assert (key->size < UINT_MAX);
+	assert (key_len < UINT_MAX);
 
 	struct slice nkey, nval;
-	nkey.len = key->size;
-	nkey.data = (char *) key->data;
+	nkey.len = key_len;
+	nkey.data = (char *) key;
 
 	int count = db_get(nessdb->instance, &nkey, &nval);
 	if (count != 1) {
@@ -149,19 +142,41 @@ db_nessdb_select(struct nb_db *db, const struct nb_slice *key)
 		return -1;
 	}
 
-#if defined(HAVE_NESSDB_SST)
-	db_free_data(nval.data);
+	if (pval) {
+		*pval = nval.data;
+		*pval_len = nval.len;
+	} else {
+#if defined(HAVE_NESSDB_V2)
+		db_free_data(nval.data);
 #endif
+	}
 
 	return 0;
 }
 
-struct nb_db_if nb_db_nessdb =
+static void
+nb_db_nessdb_valfree(struct nb_db *db, void *val)
 {
+	(void) db;
+	(void) val;
+#if defined(HAVE_NESSDB_V2)
+	db_free_data(val);
+#endif
+}
+
+static struct nb_db_if plugin = {
 	.name       = "nessdb",
-	.ctor       = db_nessdb_ctor,
-	.dtor       = db_nessdb_dtor,
-	.replace_cb = db_nessdb_replace,
-	.delete_cb  = db_nessdb_delete,
-	.select_cb  = db_nessdb_select,
+	.open       = nb_db_nessdb_open,
+	.close      = nb_db_nessdb_close,
+	.replace    = nb_db_nessdb_replace,
+	.remove     = nb_db_nessdb_remove,
+	.select     = nb_db_nessdb_select,
+	.valfree    = nb_db_nessdb_valfree,
 };
+
+NB_DB_PLUGIN const struct nb_db_if *
+nb_db_nessdb_plugin(void)
+{
+	return &plugin;
+}
+

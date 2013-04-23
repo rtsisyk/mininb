@@ -1,4 +1,3 @@
-
 /*
  * Redistribution and use in source and binary forms, with or
  * without modification, are permitted provided that the following
@@ -28,60 +27,70 @@
  * SUCH DAMAGE.
  */
 
+#include "nb_plugin.h"
+
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
+#include <limits.h> /* PATH_MAX */
+#include <dlfcn.h>
 
-#include "config.h"
-#include "dbif.h"
-#if defined(HAVE_LEVELDB)
-#include "db_leveldb.h"
-#endif
-#if defined(HAVE_NESSDB_V1) || defined(HAVE_NESSDB_V2)
-#include "db_nessdb.h"
-#endif
-#if defined(HAVE_CASCADEDB)
-#include "db_cascadedb.h"
-#endif
-#if defined(HAVE_BERKELEYDB)
-#include "db_berkeleydb.h"
-#endif
-#if defined(HAVE_KYOTOCABINET)
-#include "db_kyotocabinet.h"
-#endif
-#if defined(HAVE_TOKUKV)
-#include "db_tokukv.h"
-#endif
+typedef const struct nb_db_if *
+(*nb_db_loader_t)(void);
 
-struct nb_db_if *nb_dbs[] =
+struct nb_plugin *
+nb_plugin_load(const char *name)
 {
-#if defined(HAVE_LEVELDB)
-	&nb_db_leveldb,
-#endif
-#if defined(HAVE_NESSDB_V1) || defined(HAVE_NESSDB_V2)
-	&nb_db_nessdb,
-#endif
-#if defined(HAVE_CASCADEDB)
-	&nb_db_cascadedb,
-#endif
-#if defined(HAVE_BERKELEYDB)
-	&nb_db_berkeleydb,
-#endif
-#if defined(HAVE_KYOTOCABINET)
-	&nb_db_kyotocabinet,
-#endif
-#if defined(HAVE_TOKUKV)
-	&nb_db_tokukv,
-#endif
-	NULL,
-};
-
-struct nb_db_if *nb_db_match(const char *name)
-{
-	int i = 0;
-	while (nb_dbs[i]) {
-		if (strcmp(nb_dbs[i]->name, name) == 0)
-			return nb_dbs[i];
-		i++;
+	struct nb_plugin *plugin = malloc(sizeof(*plugin));
+	if (plugin == NULL) {
+		fprintf(stderr, "malloc(%zu) failed\n", sizeof(*plugin));
+		goto error_1;
 	}
+
+	char path[PATH_MAX];
+	snprintf(path, PATH_MAX - 1, "plugins/%s/libnb_db_%s.so", name, name);
+	path[PATH_MAX - 1] = 0;
+	void *handle = dlopen(path, RTLD_NOW);
+	if (handle == NULL) {
+		fprintf(stderr, "Can not load '%s' file: %s\n",
+			path, dlerror());
+		goto error_2;
+	}
+
+	char symbol[PATH_MAX];
+	snprintf(symbol, PATH_MAX - 1, "nb_db_%s_plugin", name);
+	symbol[PATH_MAX - 1] = 0;
+
+	/* Clear any existing error */
+	dlerror();
+
+	nb_db_loader_t loader = (nb_db_loader_t) dlsym(handle, symbol);
+	if (loader == NULL) {
+		fprintf(stderr, "Invalid plugin '%s': %s\n",
+			name, dlerror());
+		goto error_3;
+	}
+
+	plugin->pif = loader();
+	if (strcmp(plugin->pif->name, name) != 0) {
+		fprintf(stderr, "Invalid plugin '%s'\n", name);
+		goto error_3;
+	}
+	plugin->handle = handle;
+
+	return plugin;
+
+error_3:
+	dlclose(handle);
+error_2:
+	free(plugin);
+error_1:
 	return NULL;
+}
+
+void
+nb_plugin_unload(struct nb_plugin *plugin)
+{
+	dlclose(plugin->handle);
+	free(plugin);
 }

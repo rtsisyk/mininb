@@ -33,18 +33,17 @@
 #include <stddef.h>
 #include <stdbool.h>
 
-#if defined(__cplusplus)
-extern "C" {
-#endif /* defined(__cplusplus) */
+#include "nb_plugin_api.h"
 
 enum nb_bench_type {
 	NB_BENCH_GET,
 	NB_BENCH_PUT
 };
 
-struct nb_options {
-	const char *driver;
+struct nb_opts {
 	const char *root;
+	const char *driver;
+	struct nb_db_opts db_opts;
 
 	size_t key_size;
 	size_t value_size;
@@ -57,9 +56,5 @@ struct nb_options {
 	enum nb_bench_type type;
 	const char *keys_filename;
 };
-
-#if defined(__cplusplus)
-} /* extern "C" */
-#endif /* defined(__cplusplus) */
 
 #endif /* NB_OPTIONS_H_INCLUDED */

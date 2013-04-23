@@ -3,35 +3,41 @@
 #include <string.h>
 #include <stdint.h>
 #include <inttypes.h>
-#include "dbif.h"
+#include "nb_plugin.h"
 #include "options.h"
 #include "random.h"
 #include "time.h"
 #include "histogram.h"
 
 static int
-bench(struct nb_options *opts)
+bench(struct nb_opts *opts)
 {
 	int rc = 0;
 
 	rc++;
-	struct nb_db_if *db_if = nb_db_match(opts->driver);
-	if (db_if == NULL) {
-		fprintf(stderr, "Driver '%s'' is not found!", opts->driver);
+	struct nb_plugin *plugin = nb_plugin_load(opts->driver);
+	if (plugin == NULL) {
+		fprintf(stderr, "Driver '%s' is not found!\n", opts->driver);
 		goto error_1;
 	}
 
 	rc++;
-	struct nb_db *db = db_if->ctor(opts);
+	struct nb_db *db = plugin->pif->open(&opts->db_opts);
 	if (db == NULL) {
 		fprintf(stderr, "driver::new failed\n");
 		goto error_2;
 	}
 
-	char *key = malloc(opts->key_size);
-	if (key == NULL) {
+	char *keybuf = malloc(opts->key_size);
+	if (keybuf == NULL) {
 		fprintf(stderr, "key malloc failed\n");
 		goto error_3;
+	}
+
+	char *valbuf = malloc(opts->value_size);
+	if (valbuf == NULL) {
+		fprintf(stderr, "val malloc failed\n");
+		goto error_4;
 	}
 
 	struct random random;
@@ -39,13 +45,13 @@ bench(struct nb_options *opts)
 		fprintf(stderr, "random_create failed\n");
 		fprintf(stderr, "Please generate random file using dd"
 			"dd if=/dev/urandom of=keys.bin bs=1M count=100\n");
-		goto error_4;
+		goto error_5;
 	}
 
 	struct nb_histogram *hist = nb_histogram_new(6);
 	if (hist == NULL) {
 		fprintf(stderr, "nb_histogram_new() failed\n");
-		goto error_5;
+		goto error_6;
 	}
 
 	size_t prev_count = 0;
@@ -53,40 +59,35 @@ bench(struct nb_options *opts)
 
 	fprintf(stderr, "Benchmarking...");
 	for (size_t kk = 0; kk < opts->bench_count; kk++) {
-		struct nb_slice skey;
-		struct nb_slice sval;
-#if STR_KEYS
-		char keybuf[1024];
-		sprintf(keybuf, "%u", *(uint32_t *) key);
+		const void *key;
+		size_t key_len;
+		const void *val;
+		size_t val_len;
 
-		skey.size = strlen(keybuf);
-		skey.data = keybuf;
-		sval.size = strlen(keybuf);
-		sval.data = keybuf;
-
-#else
-		if (random_next(&random, key, opts->key_size) != 0) {
+		if (random_next(&random, keybuf, opts->key_size) != 0) {
 			fprintf(stderr, "random_next failed\n");
 			return 1;
 		}
 
-		skey.size = opts->key_size;
-		skey.data = key;
-		sval.size = opts->value_size;
-		sval.data = key;
-#endif
+		key = keybuf;
+		key_len = opts->key_size;
+		val = valbuf;
+		val_len = opts->value_size;
+
 		double t0 = nb_clock();
 		switch (opts->type) {
 		case NB_BENCH_GET:
-			if (db_if->select_cb(db, &skey) != 0) {
+			if (plugin->pif->select(db, key, key_len,
+						NULL, NULL) != 0) {
 				fprintf(stdout, "key: %.*s\n",
-					(int) skey.size, (char *) skey.data);
+					(int) key_len, (char *) key);
 				fprintf(stderr, "Select failed :(\n");
 				return 1;
 			}
 			break;
 		case NB_BENCH_PUT:
-			if (db_if->replace_cb(db, &skey, &sval) != 0) {
+			if (plugin->pif->replace(db, key, key_len,
+						 val, val_len) != 0) {
 				fprintf(stderr, "Replace failed :(\n");
 				goto error_5;
 			}
@@ -112,22 +113,29 @@ bench(struct nb_options *opts)
 	fprintf(stdout, "Histogram:\n");
 	nb_histogram_dump(hist, stdout);
 
-	db_if->dtor(db);
+	plugin->pif->close(db);
 
 	nb_histogram_delete(hist);
 	random_destroy(&random);
 
+	free(valbuf);
+	free(keybuf);
+
+	nb_plugin_unload(plugin);
+
 	return 0;
 
-error_5:
+error_6:
 	random_destroy(&random);
+error_5:
+	free(valbuf);
 error_4:
-	free(key);
+	free(keybuf);
 
 error_3:
-	db_if->dtor(db);
+	plugin->pif->close(db);
 error_2:
-
+	nb_plugin_unload(plugin);
 error_1:
 	return rc;
 }
@@ -135,9 +143,9 @@ error_1:
 int
 main(int argc, char *argv[])
 {
-	struct nb_options opts = {
-		.driver = "cascadedb",
-		.root  = "./nb",
+	struct nb_opts opts = {
+		.root = "./nb",
+		.driver = "leveldb",
 		.key_size = 16,
 		.value_size = 100,
 		.report_request_interval = 100000,
@@ -161,6 +169,11 @@ main(int argc, char *argv[])
 
 	fprintf(stderr, "Driver: %s\n", opts.driver);
 	fprintf(stderr, "Count : %zu\n", opts.bench_count);
+
+	char path[FILENAME_MAX];
+	snprintf(path, FILENAME_MAX - 1, "%s/%s", opts.root, opts.driver);
+	path[FILENAME_MAX - 1] = 0;
+	opts.db_opts.path = path;
 
 	if (action == 0) {
 		opts.type = NB_BENCH_PUT;

@@ -27,20 +27,16 @@
  * SUCH DAMAGE.
  */
 
-#include "db_tokukv.h"
+#include "../../nb_plugin_api.h"
 
 #include <stdlib.h>
-#include <stdint.h>
-#include <limits.h>
 #include <string.h>
 #include <stdio.h>
-#include <pthread.h>
 #include <assert.h>
 #include <errno.h>
+
 #include <sys/stat.h>
 #include <sys/types.h>
-
-#include "config.h"
 
 #include <tokudb.h>
 
@@ -50,7 +46,7 @@ struct nb_db_tokukv {
 };
 
 static struct nb_db *
-db_tokukv_ctor(const struct nb_options *opts)
+nb_db_tokukv_open(const struct nb_db_opts *opts)
 {
 	struct nb_db_tokukv *tokukv = malloc(sizeof(*tokukv));
 	if (tokukv == NULL) {
@@ -58,14 +54,8 @@ db_tokukv_ctor(const struct nb_options *opts)
 		goto error_1;
 	}
 
-	char path[FILENAME_MAX];
-	snprintf(path, FILENAME_MAX - 1, "%s/%s", opts->root, "tokukv");
-	path[FILENAME_MAX - 1] = 0;
-
-	fprintf(stderr, "TokuKV new: path=%s\n", path);
-
 	int r;
-	r = mkdir(path, 0777);
+	r = mkdir(opts->path, 0777);
 	if (r != 0 && errno != EEXIST) {
 		fprintf(stderr, "mkdir: %d\n", r);
 		goto error_1;
@@ -101,7 +91,7 @@ db_tokukv_ctor(const struct nb_options *opts)
 #endif
 
 	int env_open_flags = DB_CREATE|DB_PRIVATE|DB_INIT_MPOOL;
-	r = env->open(env, path, env_open_flags, 0644);
+	r = env->open(env, opts->path, env_open_flags, 0644);
 	if (r != 0) {
 		fprintf(stderr, "env->open failed: %s\n", db_strerror(r));
 		goto error_2;
@@ -149,7 +139,7 @@ error_1:
 }
 
 static void
-db_tokukv_dtor(struct nb_db *db)
+nb_db_tokukv_close(struct nb_db *db)
 {
 	struct nb_db_tokukv *tokukv = (struct nb_db_tokukv *) db;
 
@@ -161,8 +151,8 @@ db_tokukv_dtor(struct nb_db *db)
 }
 
 static int
-db_tokukv_replace(struct nb_db *db, const struct nb_slice *key,
-		     const struct nb_slice *val)
+nb_db_tokukv_replace(struct nb_db *db, const void *key, size_t key_len,
+			 const void *val, size_t val_len)
 {
 	struct nb_db_tokukv *tokukv = (struct nb_db_tokukv *) db;
 
@@ -170,16 +160,17 @@ db_tokukv_replace(struct nb_db *db, const struct nb_slice *key,
 	memset(&dbkey, 0, sizeof(dbkey));
 	memset(&dbval, 0, sizeof(dbval));
 
-	dbkey.data = (void *) key->data;
-	dbkey.size = key->size;
-	dbval.data = (void *) val->data;
-	dbval.size = val->size;
+	dbkey.data = (void *) key;
+	dbkey.size = key_len;
+	dbval.data = (void *) val;
+	dbval.size = val_len;
 
-	int put_flags = 0; // DB_OVERWRITE_DUP;
+	int put_flags = 0; /* DB_OVERWRITE_DUP */;
 	int r = tokukv->db->put(tokukv->db, NULL, &dbkey, &dbval,
 				    put_flags);
 	if (r == DB_NOTFOUND) {
-		fprintf(stderr, "db->get() failed: %d\n", r);
+		fprintf(stderr, "db->get() failed: %s\n",
+			db_strerror(r));
 		return -1;
 	}
 
@@ -187,19 +178,20 @@ db_tokukv_replace(struct nb_db *db, const struct nb_slice *key,
 }
 
 static int
-db_tokukv_delete(struct nb_db *db, const struct nb_slice *key)
+nb_db_tokukv_remove(struct nb_db *db, const void *key, size_t key_len)
 {
 	struct nb_db_tokukv *tokukv = (struct nb_db_tokukv *) db;
 
 	DBT dbkey;
 	memset(&dbkey, 0, sizeof(dbkey));
 
-	dbkey.data = (void *) key->data;
-	dbkey.size = key->size;
+	dbkey.data = (void *) key;
+	dbkey.size = key_len;
 
 	int r = tokukv->db->del(tokukv->db, NULL, &dbkey, 0);
 	if (r == DB_NOTFOUND) {
-		fprintf(stderr, "db->del() failed: %d\n", r);
+		fprintf(stderr, "db->del() failed: %s\n",
+			db_strerror(r));
 		return -1;
 	}
 
@@ -207,7 +199,8 @@ db_tokukv_delete(struct nb_db *db, const struct nb_slice *key)
 }
 
 static int
-db_tokukv_select(struct nb_db *db, const struct nb_slice *key)
+nb_db_tokukv_select(struct nb_db *db, const void *key, size_t key_len,
+			void **pval, size_t *pval_len)
 {
 	struct nb_db_tokukv *tokukv = (struct nb_db_tokukv *) db;
 
@@ -215,24 +208,47 @@ db_tokukv_select(struct nb_db *db, const struct nb_slice *key)
 	memset(&dbkey, 0, sizeof(dbkey));
 	memset(&dbval, 0, sizeof(dbval));
 
-	dbkey.data = (void *) key->data;
-	dbkey.size = key->size;
+	dbkey.data = (void *) key;
+	dbkey.size = key_len;
+
+	if (pval != NULL) {
+		dbval.flags = DB_DBT_MALLOC;
+	}
 
 	int r = tokukv->db->get(tokukv->db, NULL, &dbkey, &dbval, 0);
 	if (r == DB_NOTFOUND) {
-		fprintf(stderr, "db->get() failed: %d\n", r);
+		fprintf(stderr, "db->get() failed: %s\n",
+			db_strerror(r));
 		return -1;
+	}
+
+	if (pval) {
+		*pval = dbval.data;
+		*pval_len = dbval.size;
 	}
 
 	return 0;
 }
 
-struct nb_db_if nb_db_tokukv =
+static void
+nb_db_tokukv_valfree(struct nb_db *db, void *val)
 {
+	(void) db;
+	free(val);
+}
+
+static struct nb_db_if plugin = {
 	.name       = "tokukv",
-	.ctor       = db_tokukv_ctor,
-	.dtor       = db_tokukv_dtor,
-	.replace_cb = db_tokukv_replace,
-	.delete_cb  = db_tokukv_delete,
-	.select_cb  = db_tokukv_select,
+	.open       = nb_db_tokukv_open,
+	.close      = nb_db_tokukv_close,
+	.replace    = nb_db_tokukv_replace,
+	.remove     = nb_db_tokukv_remove,
+	.select     = nb_db_tokukv_select,
+	.valfree    = nb_db_tokukv_valfree,
 };
+
+NB_DB_PLUGIN const struct nb_db_if *
+nb_db_tokukv_plugin(void)
+{
+	return &plugin;
+}

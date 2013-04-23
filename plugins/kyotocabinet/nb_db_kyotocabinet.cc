@@ -27,46 +27,41 @@
  * SUCH DAMAGE.
  */
 
-#include "db_kyotocabinet.h"
+#include "../../nb_plugin_api.h"
 
 #include <stdlib.h>
-#include <stdint.h>
-#include <limits.h>
 #include <string.h>
 #include <stdio.h>
-#include <pthread.h>
 #include <assert.h>
+
 #include <sys/stat.h>
 #include <sys/types.h>
-
-#include "config.h"
 
 #include <kcpolydb.h>
 
 struct nb_db_kyotocabinet {
+	struct nb_db base;
 	kyotocabinet::TreeDB instance;
 };
 
 static struct nb_db *
-db_kyotocabinet_ctor(const struct nb_options *opts)
+nb_db_kyotocabinet_open(const struct nb_db_opts *opts)
 {
 	struct nb_db_kyotocabinet *kyotocabinet =
 			new struct nb_db_kyotocabinet();
 	assert (kyotocabinet != NULL);
 
-	char path[FILENAME_MAX];
-	snprintf(path, FILENAME_MAX - 4, "%s/%s", opts->root, "kyotocabinet");
-	path[FILENAME_MAX - 4] = 0;
 
 	int r;
-	r = mkdir(path, 0777);
+	r = mkdir(opts->path, 0777);
 	if (r != 0 && errno != EEXIST) {
 		fprintf(stderr, "mkdir: %d\n", r);
 		return NULL;
 	}
 
-	strcat(path, "/db");
-	fprintf(stderr, "KyotoCabinet new: path=%s\n", path);
+	char path[FILENAME_MAX];
+	snprintf(path, FILENAME_MAX - 4, "%s/db", opts->path);
+	path[FILENAME_MAX - 1] = 0;
 
 	int open_options = kyotocabinet::PolyDB::OWRITER |
 			   kyotocabinet::PolyDB::OCREATE;
@@ -81,7 +76,8 @@ db_kyotocabinet_ctor(const struct nb_options *opts)
 		goto error_2;
 	}
 
-	return (struct nb_db *) kyotocabinet;
+	kyotocabinet->base.opts = opts;
+	return &kyotocabinet->base;
 
 error_2:
 	delete kyotocabinet;
@@ -89,7 +85,7 @@ error_2:
 }
 
 static void
-db_kyotocabinet_dtor(struct nb_db *db)
+nb_db_kyotocabinet_close(struct nb_db *db)
 {
 	struct nb_db_kyotocabinet *kyotocabinet =
 			(struct nb_db_kyotocabinet *) db;
@@ -103,13 +99,13 @@ db_kyotocabinet_dtor(struct nb_db *db)
 }
 
 static int
-db_kyotocabinet_replace(struct nb_db *db, const struct nb_slice *key,
-		     const struct nb_slice *val)
+nb_db_kyotocabinet_replace(struct nb_db *db, const void *key, size_t key_len,
+		      const void *val, size_t val_len)
 {
 	struct nb_db_kyotocabinet *kc = (struct nb_db_kyotocabinet *) db;
 
-	if (!kc->instance.set((const char *) key->data, key->size,
-					(const char *) val->data, val->size)) {
+	if (!kc->instance.set((const char *) key, key_len,
+			      (const char *) val, val_len)) {
 		fprintf(stderr, "db->set() failed\n");
 		return -1;
 	}
@@ -118,11 +114,11 @@ db_kyotocabinet_replace(struct nb_db *db, const struct nb_slice *key,
 }
 
 static int
-db_kyotocabinet_delete(struct nb_db *db, const struct nb_slice *key)
+nb_db_kyotocabinet_remove(struct nb_db *db, const void *key, size_t key_len)
 {
 	struct nb_db_kyotocabinet *kc = (struct nb_db_kyotocabinet *) db;
 
-	if (!kc->instance.remove((const char *) key->data, key->size)) {
+	if (!kc->instance.remove((const char *) key, key_len)) {
 		fprintf(stderr, "db->remove() failed\n");
 		return -1;
 	}
@@ -131,11 +127,14 @@ db_kyotocabinet_delete(struct nb_db *db, const struct nb_slice *key)
 }
 
 static int
-db_kyotocabinet_select(struct nb_db *db, const struct nb_slice *key)
+nb_db_kyotocabinet_select(struct nb_db *db, const void *key, size_t key_len,
+		     void **pval, size_t *pval_len)
 {
 	struct nb_db_kyotocabinet *kc = (struct nb_db_kyotocabinet *) db;
 
-	if (!kc->instance.get((const char *) key->data, key->size,
+	assert (pval == NULL);
+
+	if (!kc->instance.get((const char *) key, key_len,
 			      NULL, 0)) {
 		fprintf(stderr, "db->select() failed\n");
 		return -1;
@@ -144,12 +143,25 @@ db_kyotocabinet_select(struct nb_db *db, const struct nb_slice *key)
 	return 0;
 }
 
-struct nb_db_if nb_db_kyotocabinet =
+static void
+nb_db_kyotocabinet_valfree(struct nb_db *db, void *val)
 {
+	(void) db;
+	free(val);
+}
+
+static struct nb_db_if plugin = {
 	.name       = "kyotocabinet",
-	.ctor       = db_kyotocabinet_ctor,
-	.dtor       = db_kyotocabinet_dtor,
-	.replace_cb = db_kyotocabinet_replace,
-	.delete_cb  = db_kyotocabinet_delete,
-	.select_cb  = db_kyotocabinet_select,
+	.open       = nb_db_kyotocabinet_open,
+	.close      = nb_db_kyotocabinet_close,
+	.replace    = nb_db_kyotocabinet_replace,
+	.remove     = nb_db_kyotocabinet_remove,
+	.select     = nb_db_kyotocabinet_select,
+	.valfree    = nb_db_kyotocabinet_valfree,
 };
+
+extern "C" NB_DB_PLUGIN const struct nb_db_if *
+nb_db_kyotocabinet_plugin(void)
+{
+	return &plugin;
+}

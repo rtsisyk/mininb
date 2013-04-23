@@ -27,7 +27,7 @@
  * SUCH DAMAGE.
  */
 
-#include "db_cascadedb.h"
+#include "../../nb_plugin_api.h"
 
 #include <stdlib.h>
 #include <stdint.h>
@@ -37,8 +37,6 @@
 #include <pthread.h>
 #include <assert.h>
 
-#include "config.h"
-
 #include <cascadedb/api.h>
 
 struct nb_db_cascadedb {
@@ -46,7 +44,7 @@ struct nb_db_cascadedb {
 };
 
 static struct nb_db *
-db_cascadedb_ctor(const struct nb_options *opts)
+nb_db_cascadedb_open(const struct nb_db_opts *opts)
 {
 	struct nb_db_cascadedb *cascadedb = malloc(sizeof(*cascadedb));
 	if (cascadedb == NULL) {
@@ -54,13 +52,7 @@ db_cascadedb_ctor(const struct nb_options *opts)
 		goto error_1;
 	}
 
-	char path[FILENAME_MAX];
-	snprintf(path, FILENAME_MAX - 1, "%s/%s", opts->root, "cascadedb");
-	path[FILENAME_MAX - 1] = 0;
-
-	fprintf(stderr, "cascadeDB new: path=%s\n", path);
-
-	cascadedb->instance = cdb_new(path, NULL);
+	cascadedb->instance = cdb_new(opts->path, NULL);
 	if (cascadedb->instance == NULL) {
 		fprintf(stderr, "db_open() failed\n");
 		goto error_2;
@@ -75,7 +67,7 @@ error_1:
 }
 
 static void
-db_cascadedb_dtor(struct nb_db *db)
+nb_db_cascadedb_close(struct nb_db *db)
 {
 	struct nb_db_cascadedb *cascadedb = (struct nb_db_cascadedb *) db;
 	cdb_delete(cascadedb->instance);
@@ -84,19 +76,16 @@ db_cascadedb_dtor(struct nb_db *db)
 }
 
 static int
-db_cascadedb_replace(struct nb_db *db, const struct nb_slice *key,
-		     const struct nb_slice *val)
+nb_db_cascadedb_replace(struct nb_db *db, const void *key, size_t key_len,
+			const void *val, size_t val_len)
 {
 	struct nb_db_cascadedb *cascadedb = (struct nb_db_cascadedb *) db;
 
-	assert (key->size < UINT_MAX);
-	assert (val->size < UINT_MAX);
-
 	struct db_slice  nkey, nval;
-	nkey.len = key->size;
-	nkey.data = (void *) key->data;
-	nval.len = val->size;
-	nval.data = (void *) val->data;
+	nkey.len = key_len;
+	nkey.data = (void *) key;
+	nval.len = val_len;
+	nval.data = (void *) val;
 
 	int count = cdb_put(cascadedb->instance, &nkey, &nval,
 			    cdb_lsn(cascadedb->instance) + 1);
@@ -109,15 +98,13 @@ db_cascadedb_replace(struct nb_db *db, const struct nb_slice *key,
 }
 
 static int
-db_cascadedb_delete(struct nb_db *db, const struct nb_slice *key)
+nb_db_cascadedb_remove(struct nb_db *db, const void *key, size_t key_len)
 {
 	struct nb_db_cascadedb *cascadedb = (struct nb_db_cascadedb *) db;
 
-	assert (key->size < UINT_MAX);
-
 	struct db_slice nkey;
-	nkey.len = key->size;
-	nkey.data = (char *) key->data;
+	nkey.len = key_len;
+	nkey.data = (void *) key;
 
 	cdb_del(cascadedb->instance, &nkey,
 		cdb_lsn(cascadedb->instance) + 1);
@@ -126,15 +113,14 @@ db_cascadedb_delete(struct nb_db *db, const struct nb_slice *key)
 }
 
 static int
-db_cascadedb_select(struct nb_db *db, const struct nb_slice *key)
+nb_db_cascadedb_select(struct nb_db *db, const void *key, size_t key_len,
+		       void **pval, size_t *pval_len)
 {
 	struct nb_db_cascadedb *cascadedb = (struct nb_db_cascadedb *) db;
 
-	assert (key->size < UINT_MAX);
-
 	struct db_slice nkey, nval;
-	nkey.len = key->size;
-	nkey.data = (char *) key->data;
+	nkey.len = key_len;
+	nkey.data = (char *) key;
 
 	int count = cdb_get(cascadedb->instance, &nkey, &nval);
 	if (count != 1) {
@@ -142,15 +128,33 @@ db_cascadedb_select(struct nb_db *db, const struct nb_slice *key)
 		return -1;
 	}
 
+	if (pval) {
+		*pval = nval.data;
+		*pval_len = nval.len;
+	}
+
 	return 0;
 }
 
-struct nb_db_if nb_db_cascadedb =
+static void
+nb_db_cascadedb_valfree(struct nb_db *db, void *val)
 {
+	(void) db;
+	free(val);
+}
+
+static struct nb_db_if plugin = {
 	.name       = "cascadedb",
-	.ctor       = db_cascadedb_ctor,
-	.dtor       = db_cascadedb_dtor,
-	.replace_cb = db_cascadedb_replace,
-	.delete_cb  = db_cascadedb_delete,
-	.select_cb  = db_cascadedb_select,
+	.open       = nb_db_cascadedb_open,
+	.close      = nb_db_cascadedb_close,
+	.replace    = nb_db_cascadedb_replace,
+	.remove     = nb_db_cascadedb_remove,
+	.select     = nb_db_cascadedb_select,
+	.valfree    = nb_db_cascadedb_valfree,
 };
+
+NB_DB_PLUGIN const struct nb_db_if *
+nb_db_cascadedb_plugin(void)
+{
+	return &plugin;
+}
