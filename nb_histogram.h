@@ -3,10 +3,6 @@
 
 #include <stdio.h>
 
-#if defined(__cplusplus)
-extern "C" {
-#endif /* defined(__cplusplus) */
-
 struct nb_histogram;
 
 struct nb_histogram *
@@ -23,9 +19,5 @@ nb_histogram_clear(struct nb_histogram *hist);
 
 void
 nb_histogram_dump(const struct nb_histogram *hist, FILE *file);
-
-#if defined(__cplusplus)
-} /* extern "C" */
-#endif /* defined(__cplusplus) */
 
 #endif /* NB_HISTOGRAM_H_INCLUDED */

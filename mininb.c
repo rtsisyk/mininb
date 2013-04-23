@@ -4,10 +4,10 @@
 #include <stdint.h>
 #include <inttypes.h>
 #include "nb_plugin.h"
-#include "options.h"
-#include "random.h"
-#include "time.h"
-#include "histogram.h"
+#include "nb_opts.h"
+#include "nb_random.h"
+#include "nb_time.h"
+#include "nb_histogram.h"
 
 static int
 bench(struct nb_opts *opts)
@@ -40,8 +40,8 @@ bench(struct nb_opts *opts)
 		goto error_4;
 	}
 
-	struct random random;
-	if (random_create(&random, opts->keys_filename) != 0) {
+	struct nb_random random;
+	if (nb_random_create(&random, opts->keys_filename) != 0) {
 		fprintf(stderr, "random_create failed\n");
 		fprintf(stderr, "Please generate random file using dd"
 			"dd if=/dev/urandom of=keys.bin bs=1M count=100\n");
@@ -64,7 +64,7 @@ bench(struct nb_opts *opts)
 		const void *val;
 		size_t val_len;
 
-		if (random_next(&random, keybuf, opts->key_size) != 0) {
+		if (nb_random_next(&random, keybuf, opts->key_size) != 0) {
 			fprintf(stderr, "random_next failed\n");
 			return 1;
 		}
@@ -116,7 +116,7 @@ bench(struct nb_opts *opts)
 	plugin->pif->close(db);
 
 	nb_histogram_delete(hist);
-	random_destroy(&random);
+	nb_random_destroy(&random);
 
 	free(valbuf);
 	free(keybuf);
@@ -126,7 +126,7 @@ bench(struct nb_opts *opts)
 	return 0;
 
 error_6:
-	random_destroy(&random);
+	nb_random_destroy(&random);
 error_5:
 	free(valbuf);
 error_4:
@@ -195,7 +195,7 @@ main(int argc, char *argv[])
 		return 0;
 	} else if (action == 2) {
 		fprintf(stderr, "Shuffling file...");
-		int r = random_shuffle(opts.keys_filename,
+		int r = nb_random_shuffle(opts.keys_filename,
 				       opts.key_size, opts.bench_count);
 		if (r != 0) {
 			return -1;

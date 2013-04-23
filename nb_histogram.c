@@ -1,4 +1,4 @@
-#include "histogram.h"
+#include "nb_histogram.h"
 
 #include <stdlib.h>
 #include <stdio.h>

@@ -1,4 +1,4 @@
-#include "random.h"
+#include "nb_random.h"
 
 #include <stdbool.h>
 #include <string.h>
@@ -11,7 +11,7 @@
 #include <unistd.h>
 
 static int
-random_open_file(struct random *rnd, const char *filename, bool rw)
+nb_random_open_file(struct nb_random *rnd, const char *filename, bool rw)
 {
 	int rc = 0;
 	int r;
@@ -54,7 +54,7 @@ error_1:
 }
 
 static int
-random_close_file(struct random *random)
+nb_random_close_file(struct nb_random *random)
 {
 	int rc = 0;
 	int r;
@@ -81,13 +81,13 @@ error_1:
 }
 
 int
-random_create(struct random *random, const char *filename)
+nb_random_create(struct nb_random *random, const char *filename)
 {
 	int rc = 0;
 	memset(random, 0, sizeof(*random));
 
 	rc--;
-	int r = random_open_file(random, filename, false);
+	int r = nb_random_open_file(random, filename, false);
 	if (r != 0)
 		goto error_1;
 
@@ -101,19 +101,19 @@ random_create(struct random *random, const char *filename)
 	return 0;
 
 error_2:
-	random_close_file(random);
+	nb_random_close_file(random);
 error_1:
 	return rc;
 }
 
 void
-random_destroy(struct random *random)
+nb_random_destroy(struct nb_random *random)
 {
-	random_close_file(random);
+	nb_random_close_file(random);
 }
 
 int
-random_next(struct random *random, char *key, size_t key_size)
+nb_random_next(struct nb_random *random, char *key, size_t key_size)
 {
 	if (random->cur + key_size >= random->end)
 		return 1;
@@ -125,16 +125,16 @@ random_next(struct random *random, char *key, size_t key_size)
 }
 
 int
-random_shuffle(const char *filename, size_t bs, size_t count)
+nb_random_shuffle(const char *filename, size_t bs, size_t count)
 {
-	struct random random;
+	struct nb_random random;
 	memset(&random, 0, sizeof(random));
 
 	int rc = 0;
 	int r;
 
 	rc--;
-	r = random_open_file(&random, filename, true);
+	r = nb_random_open_file(&random, filename, true);
 	if (r != 0) {
 		goto error_1;
 	}
@@ -176,7 +176,7 @@ random_shuffle(const char *filename, size_t bs, size_t count)
 	}
 
 skip:
-	r = random_close_file(&random);
+	r = nb_random_close_file(&random);
 	if (r != 0) {
 		goto error_1;
 	}
@@ -184,7 +184,7 @@ skip:
 	return 0;
 
 error_2:
-	random_close_file(&random);
+	nb_random_close_file(&random);
 error_1:
 	return rc;
 }
