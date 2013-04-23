@@ -1,5 +1,5 @@
-#ifndef NB_DB_PLUGIN_API_H_INCLUDED
-#define NB_DB_PLUGIN_API_H_INCLUDED
+#ifndef NB_PLUGIN_API_H_INCLUDED
+#define NB_PLUGIN_API_H_INCLUDED
 
 /*
  * Redistribution and use in source and binary forms, with or
@@ -80,4 +80,4 @@ struct nb_db_if {
 } /* extern "C" */
 #endif /* defined(__cplusplus) */
 
-#endif /* NB_DB_PLUGIN_API_H_INCLUDED */
+#endif /* NB_PLUGIN_API_H_INCLUDED */
