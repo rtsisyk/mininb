@@ -41,23 +41,23 @@ for size in 500000 100000; do
 	rm -f nb
 	mkdir "nb-${i}-${size}"
 	ln -s "nb-${i}-${size}" nb
-	for driver in tokukv leveldb nessdb berkeleydb; do
+	for driver in tokukv leveldb kyotocabinet berkeleydb nessdb; do
 		echo "Benchmark $size $driver ${logpath}"
 		logname="${size}-${driver}"
 		
 		# Put
 		echo "PUT"
-		./mininb ${driver} ${size} 0 1> ./nb/${logname}-put.result 2> ./nb/${logname}-put.log
+		./mininb -d ${driver} -c ${size} -a put 1> ./nb/${logname}-put.result 2> ./nb/${logname}-put.log
 		drop_caches
 		
 		# Shuffle file
 		echo "SHUFFLE"
-		./mininb ${driver} ${size} 2 1> ./nb/${logname}-shuffle.log
+		./mininb -d ${driver} -c ${size} -a shuffle 1> ./nb/${logname}-shuffle.log
 		drop_caches
 		
 		# Get
 		echo "GET"
-		./mininb ${driver} ${size} 1 1> ./nb/${logname}-get.result 2> ./nb/${logname}-get.log
+		./mininb -d ${driver} -c ${size} -a get 1> ./nb/${logname}-get.result 2> ./nb/${logname}-get.log
 	done
 done
 
