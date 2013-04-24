@@ -31,30 +31,22 @@
  */
 
 #include <stddef.h>
-#include <stdbool.h>
+#include <limits.h>
 
 #include "nb_plugin_api.h"
 
-enum nb_bench_type {
-	NB_BENCH_GET,
-	NB_BENCH_PUT
-};
-
 struct nb_opts {
-	const char *root;
-	const char *driver;
 	struct nb_db_opts db_opts;
 
-	size_t key_size;
-	size_t value_size;
+	size_t key_len;
+	size_t val_len;
 
-	double report_time_interval;
-	size_t report_request_interval;
+	size_t report_interval;
+	size_t count;
 
-	size_t bench_count;
-
-	enum nb_bench_type type;
-	const char *keys_filename;
+	char *path;
+	char *driver;
+	char *keys_filename;
 };
 
 #endif /* NB_OPTIONS_H_INCLUDED */

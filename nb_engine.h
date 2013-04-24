@@ -1,3 +1,6 @@
+#ifndef NB_ENGINE_H_INCLUDED
+#define NB_ENGINE_H_INCLUDED
+
 /*
  * Redistribution and use in source and binary forms, with or
  * without modification, are permitted provided that the following
@@ -27,5 +30,16 @@
  * SUCH DAMAGE.
  */
 
+#include <stddef.h>
+
 #include "nb_opts.h"
 
+enum nb_bench_type {
+	NB_BENCH_GET,
+	NB_BENCH_PUT
+};
+
+int
+nb_engine_run(struct nb_opts *opts, enum nb_bench_type bench_type);
+
+#endif /* NB_ENGINE_H_INCLUDED */

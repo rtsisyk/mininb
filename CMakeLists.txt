@@ -23,6 +23,7 @@ set(SRC_LIST
 	mininb.c
 	nb_plugin.c
 	nb_plugin_api.h
+	nb_engine.c
 	nb_opts.c
 	nb_random.c
 	nb_time.c
