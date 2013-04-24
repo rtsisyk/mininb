@@ -176,7 +176,8 @@ nb_histogram_percentile(const struct nb_histogram *hist, double p)
 }
 
 void
-nb_histogram_dump(const struct nb_histogram *hist, FILE *file)
+nb_histogram_dump(const struct nb_histogram *hist, FILE *file,
+		  double *percentiles, size_t percentiles_size)
 {
 	assert (hist->size > 0);
 	fprintf(file, "[%7s, %7s)\t%11s\t%7s\n", "t min", "t max",
@@ -211,24 +212,12 @@ nb_histogram_dump(const struct nb_histogram *hist, FILE *file)
 		avg_latency, -hist->power);
 	fprintf(file, "Max latency       : %7.6lf * 1e%d sec/op\n",
 		hist->max, -hist->power);
-	fprintf(file, "5%%     latency    : %7.6lf * 1e%d sec/op\n",
-		nb_histogram_percentile(hist, 0.05), -hist->power);
-	fprintf(file, "50%%    latency    : %7.6lf * 1e%d sec/op\n",
-		nb_histogram_percentile(hist, 0.50), -hist->power);
-	fprintf(file, "95%%    latency    : %7.6lf * 1e%d sec/op\n",
-		nb_histogram_percentile(hist, 0.95), -hist->power);
-	fprintf(file, "96%%    latency    : %7.6lf * 1e%d sec/op\n",
-		nb_histogram_percentile(hist, 0.96), -hist->power);
-	fprintf(file, "97%%    latency    : %7.6lf * 1e%d sec/op\n",
-		nb_histogram_percentile(hist, 0.97), -hist->power);
-	fprintf(file, "98%%    latency    : %7.6lf * 1e%d sec/op\n",
-		nb_histogram_percentile(hist, 0.98), -hist->power);
-	fprintf(file, "99%%    latency    : %7.6lf * 1e%d sec/op\n",
-		nb_histogram_percentile(hist, 0.99), -hist->power);
-	fprintf(file, "99.9%%  latency    : %7.6lf * 1e%d sec/op\n",
-		nb_histogram_percentile(hist, 0.999), -hist->power);
-	fprintf(file, "99.99%% latency    : %7.6lf * 1e%d sec/op\n",
-		nb_histogram_percentile(hist, 0.9999), -hist->power);
+
+	for (size_t i = 0; i < percentiles_size; i++) {
+		double p = percentiles[i];
+		fprintf(file, "%-2.4lf%%  latency  : %7.6lf * 1e%d sec/op\n",
+			p*1e2, nb_histogram_percentile(hist, p), -hist->power);
+	}
 	fprintf(file, "Avg throughput    : %7.0lf ops/sec\n",
 		(double) hist->size / (hist->sum * pow(10, -hist->power)));
 }

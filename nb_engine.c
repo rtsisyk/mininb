@@ -146,8 +146,12 @@ nb_engine_run(struct nb_opts *opts, enum nb_bench_type bench_type)
 
 	fprintf(stderr, "\r%zu ops done...\n", opts->count);
 
+	double percentiles[] = { 0.05, 0.50, 0.95, 0.96, 0.97, 0.98, 0.99,
+				 0.995, 0.999, 0.9995, 0.9999 };
+	size_t percentiles_size = sizeof(percentiles) / sizeof(percentiles[0]);
+
 	fprintf(stdout, "Histogram:\n");
-	nb_histogram_dump(hist, stdout);
+	nb_histogram_dump(hist, stdout, percentiles, percentiles_size);
 
 	plugin->pif->close(db);
 

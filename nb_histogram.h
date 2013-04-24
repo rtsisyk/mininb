@@ -47,6 +47,7 @@ void
 nb_histogram_clear(struct nb_histogram *hist);
 
 void
-nb_histogram_dump(const struct nb_histogram *hist, FILE *file);
+nb_histogram_dump(const struct nb_histogram *hist, FILE *file,
+		  double *percentiles, size_t percentiles_size);
 
 #endif /* NB_HISTOGRAM_H_INCLUDED */
