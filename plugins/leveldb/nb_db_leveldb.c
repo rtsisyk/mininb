@@ -153,12 +153,10 @@ nb_db_leveldb_select(struct nb_db *db, const void *key, size_t key_len,
 			  key, key_len,
 			  &val_len, &err);
 
-	if (err != NULL) {
+	if (val == NULL || err != NULL) {
 		printf("leveldb_get() failed: %s\n", err);
 		return -1;
 	}
-
-	assert (val != NULL);
 
 	if (pval) {
 		*pval = val;
